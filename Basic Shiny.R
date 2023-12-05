@@ -2,8 +2,9 @@ library(leaflet)
 library(dplyr)
 library(DT)
 library(readr)
-library(shiny)
 library(ggplot2)
+library(shiny)
+library(shinyjs)
 
 # Load the data
 indy_data_bar <- read_csv("https://raw.githubusercontent.com/pushpit21/Brew628/breweries_income_attributes/business_analysis_indy.csv")
@@ -29,10 +30,25 @@ postal_code_analysis_philly <- high_rated_philly %>%
 
 # Define UI
 ui <- fluidPage(
+  useShinyjs(),
+  checkboxInput("darkmode", "Dark Mode", value = FALSE),
+  tags$style(HTML("
+    .dark-mode {
+        background-color: #121212;
+        color: #e8e6e3;
+    }
+
+    .dark-mode .well, .dark-mode .panel {
+        background-color: #333;
+        border-color: #444;
+    }
+
+    /* Add more dark mode styles as needed */
+")),
   titlePanel("Breweries Analysis"),
   tabsetPanel(
     tabPanel("Map and Table", 
-             selectInput("city", "Choose a city:", choices = c("Indianapolis", "Philadelphia")),
+             selectInput("cityMap", "Choose a city:", choices = c("Indianapolis", "Philadelphia")),
              fluidRow(
                column(6, DTOutput("table")),
                column(6, leafletOutput("map"))
@@ -41,9 +57,13 @@ ui <- fluidPage(
     tabPanel("Demographic and Attrs",
              sidebarLayout(
                sidebarPanel(
-                 selectInput("city", "Select City:", choices = c("Indianapolis", "Philadelphia")),
-                 checkboxGroupInput("attribute", "Select Attribute:",
-                                    choices = c("HasTV", "full_bar", "DogsAllowed", "OutdoorSeating", "HappyHour"))
+                 selectInput("cityDemo", "Select City:", choices = c("Indianapolis", "Philadelphia")),
+                 checkboxGroupInput("attribute", "Select Attribute(s):",
+                                    choices = c("TV Available" = "HasTV", 
+                                                "Full Bar" = "full_bar", 
+                                                "Dog-Friendly" = "DogsAllowed", 
+                                                "Outdoor Seating Available" = "OutdoorSeating", 
+                                                "Happy Hour Offers" = "HappyHour"))
                ),
                mainPanel(
                  plotOutput("attributePlot"), # Existing plot for attributes
@@ -54,7 +74,7 @@ ui <- fluidPage(
              )
     ),
     tabPanel("Sentiment Analysis and LDA", 
-             selectInput("city", "Select City:", choices = c("Indianapolis", "Philadelphia")),
+             selectInput("citySent", "Select City:", choices = c("Indianapolis", "Philadelphia")),
              fluidRow(
                column(6, plotOutput("sentimentPlot")),
                column(6, plotOutput("correlationPlot"))
@@ -62,7 +82,7 @@ ui <- fluidPage(
              uiOutput("sentimentPlotText")
     ),
     tabPanel("Operational Hours Analysis", 
-             selectInput("city_select", "Choose a city:", choices = c("Indianapolis", "Philadelphia")),
+             selectInput("cityOp", "Choose a city:", choices = c("Indianapolis", "Philadelphia")),
              fluidRow(
                column(6, plotOutput("quarterlyPlot")),
                column(6, plotOutput("monthlyPlot"))
@@ -70,8 +90,7 @@ ui <- fluidPage(
              uiOutput("operationalText")
     ),
     tabPanel("Advice", 
-             actionButton("resetButton", "Reset"),
-             uiOutput("dynamicContent")
+             uiOutput("adviceText")
     ),
     tabPanel("Contact Us",
              h3("Contact Information"),
@@ -83,6 +102,15 @@ ui <- fluidPage(
 
 # Define server logic
 server <- function(input, output) {
+  # Dark Mode
+  observeEvent(input$darkmode, {
+    if(input$darkmode) {
+      shinyjs::addClass(selector = "body", class = "dark-mode")
+    } else {
+      shinyjs::removeClass(selector = "body", class = "dark-mode")
+    }
+  })
+  
   selectedBarPlot <- reactiveVal()
   
   # Read data from the URLs
@@ -105,7 +133,7 @@ server <- function(input, output) {
   
   # A reactive expression that returns the dataset based on selection
   selected_data <- reactive({
-    if(input$city == "Indianapolis") {
+    if(input$cityMap == "Indianapolis") {
       indy_data()
     } else {
       philly_data()
@@ -151,7 +179,7 @@ server <- function(input, output) {
       arrange(desc(avg_stars)) # Sort in descending order by avg_stars
     
     # Define map center based on city
-    map_center <- if(input$city == "Indianapolis") {
+    map_center <- if(input$cityMap == "Indianapolis") {
       c(-86.1581, 39.7684)
     } else {
       c(-75.1652, 39.9526) # Longitude and latitude for Philadelphia
@@ -170,7 +198,7 @@ server <- function(input, output) {
   output$attributeInsights <- renderText({
     req(input$attribute)
     selected_attr <- input$attribute
-    city <- input$city
+    city <- input$cityDemo
     
     # Function to generate insights based on city and attribute
     generate_insights <- function(city, attr) {
@@ -213,9 +241,9 @@ server <- function(input, output) {
   
   # Define reactive expressions for the data based on the selected city
   selected_city_data <- reactive({
-    if (input$city_select == "Indianapolis") {
+    if (input$citySent == "Indianapolis") {
       list(sentiments = indy_sentiments, correlations = indy_correlations)
-    } else if (input$city_select == "Philadelphia") {
+    } else if (input$citySent == "Philadelphia") {
       list(sentiments = philly_sentiments, correlations = philly_correlations)
     }
   })
@@ -246,57 +274,12 @@ server <- function(input, output) {
   
   # Render the UI output for sentiment plot interpretation
   output$sentimentPlotText <- renderUI({
-    text <- if (input$city_select == "Indianapolis") {
+    text <- if (input$citySent == "Indianapolis") {
       indy_text
-    } else if (input$city_select == "Philadelphia") {
+    } else if (input$citySent == "Philadelphia") {
       philly_text
     } else {
-      "Please select a city to see the interpretation."  # Default text
-    }
-    
-    # Return an HTML box with the text
-    wellPanel(
-      tags$h4("Interpretation"),
-      tags$p(text)
-    )
-  })
-  
-  output$adviceText <- renderUI({
-    HTML("
-    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Diversify Focus Areas:</strong> Prioritize factors beyond happy hour, outdoor seating, or a full bar. Invest in creating a unique, TV-free customer experience, as these elements resonate more strongly with patrons.
-    </div>
-    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Tailor Offerings to Cities:</strong>
-      <ul>
-        <li><em>Philadelphia:</em> Elevate group experiences, culinary offerings, and ambiance for top-notch customer satisfaction. Consider moderate investments in revamping communal spaces and enhancing culinary options.</li>
-        <li><em>Indianapolis:</em> Emphasize a diverse beer selection and inviting ambiance, adjusting focus from extensive group experiences and food offerings. Channel investments into expanding beer varieties and enhancing overall ambiance.</li>
-      </ul>
-    </div>
-    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Adapting to Seasonal Fluctuations:</strong> Recognize the potential for reduced operational costs in the 4th quarter, seizing the opportunity for efficient resource allocation during holidays and harsh winters. Strategically align operational hours with heightened activity in the 2nd and 3rd quarters, fostering increased customer engagement and potential revenue growth.
-    </div>
-    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>City-Centric Offerings and Pricing Strategies:</strong>
-      <ul>
-        <li>In Indianapolis, the spread of high-rated breweries across various postal codes emphasizes a city-wide appreciation for quality breweries. Tailor offerings to cater to diverse tastes, considering the success of high-rated breweries in areas with varying median incomes (e.g., 46219 and 46240).</li>
-        <li>In Philadelphia, hotspots for high-rated breweries, such as 19144 and 19128, showcase the importance of understanding local preferences. Embrace the diversity in median incomes within successful areas.</li>
-        <li>Emphasize a balanced approach to pricing, as mid-range pricing (\"2\") prevails among successful breweries in both cities. This ensures accessibility without compromising quality, contributing to sustained customer loyalty and positive ratings.</li>
-      </ul>
-    </div>
-  ")
-  })
-  
-  selectedCity <- reactiveVal()
-  
-  # Render the UI output for sentiment plot interpretation
-  output$sentimentPlotText <- renderUI({
-    text <- if (input$city_select == "Indianapolis") {
-      indy_text
-    } else if (input$city_select == "Philadelphia") {
-      philly_text
-    } else {
-      "Please select a city to see the interpretation."  # Default text
+      "Please select a city to see the interpretation."  
     }
     
     # Return an HTML box with the text
@@ -333,10 +316,10 @@ server <- function(input, output) {
   })
   
   output$scatterPlot <- renderPlot({
-    req(input$city, input$attribute) # Ensure city and attributes are selected
+    req(input$cityDemo, input$attribute) # Ensure city and attributes are selected
     
     # Select data based on city
-    data <- if(input$city == "Indianapolis") {
+    data <- if(input$cityDemo == "Indianapolis") {
       indy_data_bar
     } else {
       philly_data_bar
@@ -358,7 +341,7 @@ server <- function(input, output) {
     req(input$attribute)
     
     # Select data based on city
-    data <- if(input$city == "Indianapolis") {
+    data <- if(input$cityDemo == "Indianapolis") {
       indy_data_bar
     } else {
       philly_data_bar
@@ -387,14 +370,14 @@ server <- function(input, output) {
     ggplot(plot_data, aes(x = Attribute, y = AvgRating, fill = RatingType)) +
       geom_bar(stat = "identity", position = position_dodge()) +
       scale_fill_manual(values = c("With" = "blue", "Without" = "red")) +
-      labs(title = paste("Average Ratings by Selected Attributes in", input$city),
+      labs(title = paste("Average Ratings by Selected Attributes in", input$cityDemo),
            y = "Average Rating") +
       theme_minimal()
   })
   
   # City-based insights
   output$cityInsights <- renderText({
-    if(input$city == "Indianapolis") {
+    if(input$cityDemo == "Indianapolis") {
       return("Indianapolis Insights: HappyHour, OutdoorSeating, and full bars are associated with lower ratings. Focus on brew quality and ambiance.")
     } else {
       return("Philadelphia Insights: Neither HappyHour, OutdoorSeating, nor full bars enhance brewery ratings. Focus on brew quality and service.")
@@ -405,7 +388,7 @@ server <- function(input, output) {
   output$attributeInsights <- renderText({
     req(input$attribute)
     selected_attr <- input$attribute
-    city <- input$city
+    city <- input$cityDemo
     
     # Function to generate insights based on city and attribute
     generate_insights <- function(city, attr) {
