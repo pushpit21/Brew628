@@ -5,6 +5,7 @@ library(readr)
 library(ggplot2)
 library(shiny)
 library(shinyjs)
+library(shinyWidgets)
 
 # Load the data
 indy_data_bar <- read_csv("https://raw.githubusercontent.com/pushpit21/Brew628/breweries_income_attributes/business_analysis_indy.csv")
@@ -31,19 +32,47 @@ postal_code_analysis_philly <- high_rated_philly %>%
 # Define UI
 ui <- fluidPage(
   useShinyjs(),
-  checkboxInput("darkmode", "Dark Mode", value = FALSE),
+  switchInput(inputId = "darkmode", label = "Dark Mode", value = FALSE),
   tags$style(HTML("
     .dark-mode {
-        background-color: #121212;
-        color: #e8e6e3;
+      background-color: #121212;
+      color: #c0c0c0; /* Adjusted to a slightly darker shade of light grey for better contrast */
+      /* Other dark mode styles */
     }
-
-    .dark-mode .well, .dark-mode .panel {
-        background-color: #333;
-        border-color: #444;
+    
+    /* Specific styles for checkbox labels in dark mode */
+    .dark-mode .shiny-input-container label {
+        color: #c0c0c0; /* Adjusted label text to a slightly darker shade of light grey for better contrast */
     }
-
-    /* Add more dark mode styles as needed */
+    
+    /* Styles for checkboxes in dark mode */
+    .dark-mode .shiny-input-container input[type='checkbox'] {
+        accent-color: #c0c0c0; /* Changes the checkmark color */
+    }
+    
+    .dark-mode .shiny-input-container input[type='checkbox']:before {
+        border-color: #c0c0c0; /* Changes the border color of the checkbox */
+    }
+    
+    /* You can also style the selectInput dropdown for dark mode if needed */
+    .dark-mode .shiny-input-container select {
+        background-color: #333; /* Dark background for dropdown */
+        color: #c0c0c0; /* Light text color for dropdown options */
+        border-color: #c0c0c0; /* Light border color for dropdown */
+    }
+    
+    .dark-mode .dataTables_wrapper .dataTable {
+        color: #c0c0c0; /* Light text color for better readability */
+    }
+    
+    .dark-mode .dataTables_wrapper .dataTable th {
+        background-color: #333; /* Darker background for table headers */
+        color: #fff; /* White text for headers */
+    }
+    
+    .dark-mode .dataTables_wrapper .dataTable td {
+        background-color: #222; /* Slightly lighter background for table cells */
+    }
 ")),
   titlePanel("Breweries Analysis"),
   tabsetPanel(
@@ -54,7 +83,7 @@ ui <- fluidPage(
                column(6, leafletOutput("map"))
              )
     ),
-    tabPanel("Demographic and Attrs",
+    tabPanel("Demographic and Attributes",
              sidebarLayout(
                sidebarPanel(
                  selectInput("cityDemo", "Select City:", choices = c("Indianapolis", "Philadelphia")),
@@ -103,10 +132,12 @@ ui <- fluidPage(
 # Define server logic
 server <- function(input, output) {
   # Dark Mode
-  observeEvent(input$darkmode, {
+  observe({
     if(input$darkmode) {
+      # Apply dark mode styles
       shinyjs::addClass(selector = "body", class = "dark-mode")
     } else {
+      # Remove dark mode styles
       shinyjs::removeClass(selector = "body", class = "dark-mode")
     }
   })
@@ -292,20 +323,22 @@ server <- function(input, output) {
   output$adviceText <- renderUI({
     HTML("
     <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Diversify Focus Areas:</strong> Prioritize factors beyond happy hour, outdoor seating, or a full bar. Invest in creating a unique, TV-free customer experience, as these elements resonate more strongly with patrons.
+      <strong>1. Diversify Focus Areas:</strong> Prioritize factors beyond happy hour, outdoor seating, or a full bar. Invest in creating a unique, TV-free customer experience, as these elements resonate more strongly with patrons.
     </div>
     <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Tailor Offerings to Cities:</strong>
+      <strong>2. Tailor Offerings to Cities:</strong>
       <ul>
         <li><em>Philadelphia:</em> Elevate group experiences, culinary offerings, and ambiance for top-notch customer satisfaction. Consider moderate investments in revamping communal spaces and enhancing culinary options.</li>
         <li><em>Indianapolis:</em> Emphasize a diverse beer selection and inviting ambiance, adjusting focus from extensive group experiences and food offerings. Channel investments into expanding beer varieties and enhancing overall ambiance.</li>
       </ul>
     </div>
     <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>Adapting to Seasonal Fluctuations:</strong> Recognize the potential for reduced operational costs in the 4th quarter, seizing the opportunity for efficient resource allocation during holidays and harsh winters. Strategically align operational hours with heightened activity in the 2nd and 3rd quarters, fostering increased customer engagement and potential revenue growth.
+      <strong>3. Adapting to Seasonal Fluctuations:</strong> 
+      <li>Recognize the potential for reduced operational costs in the 4th quarter, seizing the opportunity for efficient resource allocation during holidays and harsh winters.</li>
+      <li>Strategically align operational hours with heightened activity in the 2nd and 3rd quarters, fostering increased customer engagement and potential revenue growth.</li>
     </div>
     <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
-      <strong>City-Centric Offerings and Pricing Strategies:</strong>
+      <strong>4. City-Centric Offerings and Pricing Strategies:</strong>
       <ul>
         <li>In Indianapolis, the spread of high-rated breweries across various postal codes emphasizes a city-wide appreciation for quality breweries. Tailor offerings to cater to diverse tastes, considering the success of high-rated breweries in areas with varying median incomes (e.g., 46219 and 46240).</li>
         <li>In Philadelphia, hotspots for high-rated breweries, such as 19144 and 19128, showcase the importance of understanding local preferences. Embrace the diversity in median incomes within successful areas.</li>
