@@ -10,6 +10,8 @@ library(shinyWidgets)
 # Load the data
 indy_data_bar <- read_csv("https://raw.githubusercontent.com/pushpit21/Brew628/breweries_income_attributes/business_analysis_indy.csv")
 philly_data_bar <- read_csv("https://raw.githubusercontent.com/pushpit21/Brew628/breweries_income_attributes/business_analysis_philly.csv")
+indy_data_url <- "https://raw.githubusercontent.com/pushpit21/Brew628/sentimental_analysis/indi_beer_data.csv"
+philly_data_url <- "https://raw.githubusercontent.com/pushpit21/Brew628/sentimental_analysis/philly_beer_data.csv"
 
 # Filter breweries with average rating 4 or above in Indianapolis
 high_rated_indy <- indy_data_bar %>% filter(stars >= 4)
@@ -32,8 +34,15 @@ postal_code_analysis_philly <- high_rated_philly %>%
 # Define UI
 ui <- fluidPage(
   useShinyjs(),
-  switchInput(inputId = "darkmode", label = "Dark Mode", value = FALSE),
   tags$style(HTML("
+    #darkmode-switch {
+        transform: scale(0.75); /* Adjust the size by changing the scale value */
+        position: absolute;
+        right: 10px; /* Adjusts the right margin for positioning */
+        top: 10px; /* Adjusts the top margin for positioning */
+        z-index: 100; /* Ensures the switch stays on top of other elements */
+    }
+      
     .dark-mode {
       background-color: #121212;
       color: #c0c0c0; /* Adjusted to a slightly darker shade of light grey for better contrast */
@@ -75,12 +84,20 @@ ui <- fluidPage(
     }
 ")),
   titlePanel("Breweries Analysis"),
+  div(
+    switchInput(
+      inputId = "darkmode", 
+      label = "", 
+      value = FALSE
+    ),
+    id = "darkmode-switch"
+  ),
   tabsetPanel(
     tabPanel("Map and Table", 
              selectInput("cityMap", "Choose a city:", choices = c("Indianapolis", "Philadelphia")),
              fluidRow(
-               column(6, DTOutput("table")),
-               column(6, leafletOutput("map"))
+               column(8, DTOutput("table")),
+               column(4, leafletOutput("map"))
              )
     ),
     tabPanel("Demographic and Attributes",
@@ -119,7 +136,11 @@ ui <- fluidPage(
              uiOutput("operationalText")
     ),
     tabPanel("Advice", 
-             uiOutput("adviceText")
+             selectInput("cityAdvice", "For specific advice, select a city:", 
+                         choices = c("General Advice" = "General Advice", "Indianapolis" = "Indianapolis", "Philadelphia" = "Philadelphia"),
+                         selected = "General Advice"),
+             uiOutput("adviceText"),
+             uiOutput("adviceSpecific")
     ),
     tabPanel("Contact Us",
              h3("Contact Information"),
@@ -143,11 +164,7 @@ server <- function(input, output) {
   })
   
   selectedBarPlot <- reactiveVal()
-  
-  # Read data from the URLs
-  indy_data_url <- "https://raw.githubusercontent.com/pushpit21/Brew628/sentimental_analysis/indi_beer_data.csv"
-  philly_data_url <- "https://raw.githubusercontent.com/pushpit21/Brew628/sentimental_analysis/philly_beer_data.csv"
-  
+
   # Initialize reactive variables to store the data
   indy_data <- reactiveVal()
   philly_data <- reactiveVal()
@@ -184,9 +201,17 @@ server <- function(input, output) {
         address = first(address),
         postal_code = first(postal_code),
         avg_stars = mean(avg_star, na.rm = TRUE),
+        avg_reviews = mean(review_count, na.rm = TRUE),  # Add review_count
         .groups = 'drop'  
       ) %>%
       arrange(desc(avg_stars)) # Sort in descending order by avg_stars
+    
+    # Rename columns for user-friendliness
+    colnames(data_unique)[which(names(data_unique) == "name")] <- "Business Name"
+    colnames(data_unique)[which(names(data_unique) == "address")] <- "Address"
+    colnames(data_unique)[which(names(data_unique) == "postal_code")] <- "Postal Code"
+    colnames(data_unique)[which(names(data_unique) == "avg_stars")] <- "Average Stars"
+    colnames(data_unique)[which(names(data_unique) == "avg_reviews")] <- "Number of Reviews"
     
     # Create a table without the business_id column
     datatable(data_unique %>% select(-business_id), options = list(pageLength = 10, searchHighlight = TRUE))
@@ -284,7 +309,7 @@ server <- function(input, output) {
     data <- selected_city_data()
     ggplot(data.frame(Topic = topics, Value = data$sentiments), aes(x = Topic, y = Value)) +
       geom_bar(stat = "identity", fill = "skyblue") +
-      labs(title = "Most Talked About", y = "Sentiment Score") +
+      labs(title = "Most Talked About", y = "Mean of Weights") +
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
@@ -321,7 +346,8 @@ server <- function(input, output) {
   })
   
   output$adviceText <- renderUI({
-    HTML("
+    if(is.null(input$cityAdvice) || input$cityAdvice == "General Advice") {
+      HTML("
     <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
       <strong>1. Diversify Focus Areas:</strong> Prioritize factors beyond happy hour, outdoor seating, or a full bar. Invest in creating a unique, TV-free customer experience, as these elements resonate more strongly with patrons.
     </div>
@@ -345,7 +371,16 @@ server <- function(input, output) {
         <li>Emphasize a balanced approach to pricing, as mid-range pricing (\"2\") prevails among successful breweries in both cities. This ensures accessibility without compromising quality, contributing to sustained customer loyalty and positive ratings.</li>
       </ul>
     </div>
-  ")
+    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+      <strong>5. Full Bar: </strong>In both cities, having a full bar is statistically significant and negatively impacts ratings. Consider alternative beverage options or a more selective bar menu that aligns with local preferences.
+    </div>
+    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+      <strong>6. Outdoor Seating: </strong>This feature also negatively impacts ratings in both cities. Re-evaluate the use of outdoor spaces, focusing perhaps more on ambiance and comfort or repurposing these areas differently.
+    </div>  ")
+    } else {
+      # Return NULL when a city is selected, which makes the advice text disappear
+      return(NULL)
+    }
   })
   
   output$scatterPlot <- renderPlot({
@@ -365,8 +400,9 @@ server <- function(input, output) {
     # Create scatter plot
     ggplot(filtered_data, aes(x = Median_Income, y = stars, color = as.factor(postal_code))) +
       geom_point() +
-      labs(title = paste("Scatter Plot for", input$city),
-           x = "Median Income",
+      scale_x_continuous(labels = scales::label_number(scale = 1e-3, suffix = "K"), breaks = scales::breaks_extended()) +
+      labs(title = paste("Scatter Plot for", input$cityDemo),
+           x = "Median Income (in Thousands USD)",
            y = "Average Rating")
   })
   
@@ -402,7 +438,7 @@ server <- function(input, output) {
     # Create side-by-side bar plot
     ggplot(plot_data, aes(x = Attribute, y = AvgRating, fill = RatingType)) +
       geom_bar(stat = "identity", position = position_dodge()) +
-      scale_fill_manual(values = c("With" = "blue", "Without" = "red")) +
+      scale_fill_manual(values = c("With" = "skyblue", "Without" = "salmon")) +
       labs(title = paste("Average Ratings by Selected Attributes in", input$cityDemo),
            y = "Average Rating") +
       theme_minimal()
@@ -449,6 +485,140 @@ server <- function(input, output) {
     # Combine insights for all selected attributes
     insights <- sapply(selected_attr, function(attr) generate_insights(city, attr))
     paste(insights, collapse = "\n\n")
+  })
+  
+  # Define the specific advice for each city
+  indy_advice <- HTML("
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>1. Beer Selection and Ambiance: </strong>Focus on offering a diverse beer selection and creating an inviting ambiance. These elements have positive correlations with customer ratings in Indianapolis.
+  </div>
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>2. De-emphasize Group Experience and Food Offerings: </strong>Unlike Philadelphia, Indianapolis customers place less emphasis on group experiences and food offerings.
+  </div>
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>3. Operational Hours Adjustment: </strong>Consider extended operational hours during the 2nd and 3rd quarters to capitalize on increased activity, and potentially reduce hours in the 4th quarter due to the holiday season and harsh winter.
+  </div>  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>4. Location Strategy: </strong>Pay attention to various postal codes, as high-rated breweries are spread across the city. Both high and mid-income areas appreciate quality breweries.
+  </div>
+  ")
+  
+  philly_advice <- HTML("
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>1. Group Experience, Food, and Ambiance: </strong>Elevate these aspects as they are highly correlated with customer satisfaction in Philadelphia. Focus on enhancing the culinary offerings and the overall ambiance of your brewery.
+  </div>
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>2. Seasonal Operational Strategy: </strong>Like Indianapolis, consider adapting your operational hours based on seasonal trends, with more hours in the warmer 2nd and 3rd quarters.
+  </div>
+  <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+    <strong>3. Target Specific Postal Codes: </strong>Focus on areas like 19144 and 19128, which are hotspots for high-rated breweries. These areas have a wide range of median incomes, suggesting a diverse customer base.
+  ")
+  
+  # Render the specific advice based on selected city
+  output$adviceSpecific <- renderUI({
+    if(input$cityAdvice == "Indianapolis") {
+      indy_advice
+    } else if(input$cityAdvice == "Philadelphia") {
+      philly_advice
+    } else {
+      # Default text before a city is selected
+      HTML("<p></p>")
+    }
+  })
+  
+  # Operational Tab data
+  indy_monthly_data <- data.frame(
+    Month = 1:12,
+    Value = c(-771.263457, -304.717806, 653.571030, 1007.588418, 680.784464, 79.751414, 59.387713, 263.855755, 191.168941, -715.004458, -526.949855, -618.172159)
+  )
+  
+  indy_quarterly_data <- data.frame(
+    Quarter = 1:4,
+    Value = c(-422.410233, 1768.124296, 514.412408, -1860.126471)
+  )
+  
+  philly_monthly_data <- data.frame(
+    Month = 1:12,
+    Value = c(-613.214288, -157.962538, 550.167971, 459.679665, 307.908620, -331.196847, 175.326439, 219.126017, 340.321114, -437.731564, -401.942547, -410.482042)
+  )
+  
+  philly_quarterly_data <- data.frame(
+    Quarter = 1:4,
+    Value = c(-221.008855, 736.391438, 734.773570, -1250.156153)
+  )
+  
+  # Reactive expression for monthly plot
+  monthlyPlotData <- reactive({
+    if(input$cityOp == "Indianapolis") {
+      list(data = indy_monthly_data, color = "skyblue")
+    } else if(input$cityOp == "Philadelphia") {
+      list(data = philly_monthly_data, color = "salmon")
+    } else {
+      NULL  # When no city is selected
+    }
+  })
+  
+  # Reactive expression for quarterly plot
+  quarterlyPlotData <- reactive({
+    if(input$cityOp == "Indianapolis") {
+      list(data = indy_quarterly_data, color = "skyblue")
+    } else if(input$cityOp == "Philadelphia") {
+      list(data = philly_quarterly_data, color = "salmon")
+    } else {
+      NULL  # When no city is selected
+    }
+  })
+  
+  # Render monthly bar plot
+  output$monthlyPlot <- renderPlot({
+    plotData <- monthlyPlotData()
+    if(is.null(plotData)) return(NULL)
+    
+    ggplot(plotData$data, aes(x = Month, y = Value)) +
+      geom_col(fill = plotData$color) +
+      labs(title = "Monthly Analysis", x = "Month", y = "Value") +
+      theme_minimal()
+  })
+  
+  # Render quarterly bar plot
+  output$quarterlyPlot <- renderPlot({
+    plotData <- quarterlyPlotData()
+    if(is.null(plotData)) return(NULL)
+    
+    ggplot(plotData$data, aes(x = Quarter, y = Value)) +
+      geom_col(fill = plotData$color) +
+      labs(title = "Quarterly Analysis", x = "Quarter", y = "Value") +
+      theme_minimal()
+  })
+  
+  # Define the texts for each city
+  philly_text <- HTML("
+    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+      <li>Recognize the potential for reduced operational costs in the 4th quarter, seizing the opportunity for efficient resource allocation during holidays and harsh winters.</li>
+      <li>Strategically align operational hours with heightened activity in the 2nd and 3rd quarters, fostering increased customer engagement and potential revenue growth.</li>
+    </div>
+  ")
+  indy_text <- HTML("
+    <div style='margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;'>
+      <li>Recognize the potential for reduced operational costs in the 4th quarter, seizing the opportunity for efficient resource allocation during holidays and harsh winters.</li>
+      <li>Strategically align operational hours with heightened activity in the 2nd and 3rd quarters, fostering increased customer engagement and potential revenue growth.</li>
+    </div>
+  ")
+  
+  # Render the UI output for sentiment plot interpretation
+  output$operationalText <- renderUI({
+    text <- if (input$citySent == "Indianapolis") {
+      indy_text
+    } else if (input$citySent == "Philadelphia") {
+      philly_text
+    } else {
+      "Please select a city to see the interpretation."  
+    }
+    
+    # Return an HTML box with the text
+    wellPanel(
+      tags$h4("Interpretation"),
+      tags$p(text)
+    )
   })
 }
 
