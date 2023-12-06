@@ -325,15 +325,15 @@ server <- function(input, output) {
   })
   
   # Define the texts for each city
-  philly_text <- "In the bustling city of Philadelphia, the highest correlations with average star ratings were linked to Group Experience, Food, and Ambience. This suggests that breweries in Philly thrive when they prioritize group dynamics, culinary experiences, and the overall ambiance. For brewery owners, these insights translate into actionable strategies. In Philadelphia, focusing on fostering vibrant group atmospheres, elevating culinary offerings, and enhancing the overall ambiance can significantly impact customer satisfaction."
-  indy_text <- "Indianapolis exhibited a distinctive preference profile. Here, negative correlations with Group Experience and Food were notable, while positive correlations were observed with Beer Selection and Ambience. This implies that in Indy, customers are more responsive to a diverse beer selection and an inviting ambiance rather than group-focused experiences and extensive food offerings. The emphasis should shift towards curating a diverse beer selection and crafting a welcoming ambiance, de-emphasizing extensive group experiences and food options."
+  philly_text_sent <- "In the bustling city of Philadelphia, the highest correlations with average star ratings were linked to Group Experience, Food, and Ambience. This suggests that breweries in Philly thrive when they prioritize group dynamics, culinary experiences, and the overall ambiance. For brewery owners, these insights translate into actionable strategies. In Philadelphia, focusing on fostering vibrant group atmospheres, elevating culinary offerings, and enhancing the overall ambiance can significantly impact customer satisfaction."
+  indy_text_sent <- "Indianapolis exhibited a distinctive preference profile. Here, negative correlations with Group Experience and Food were notable, while positive correlations were observed with Beer Selection and Ambience. This implies that in Indy, customers are more responsive to a diverse beer selection and an inviting ambiance rather than group-focused experiences and extensive food offerings. The emphasis should shift towards curating a diverse beer selection and crafting a welcoming ambiance, de-emphasizing extensive group experiences and food options."
   
   # Render the UI output for sentiment plot interpretation
   output$sentimentPlotText <- renderUI({
     text <- if (input$citySent == "Indianapolis") {
-      indy_text
+      indy_text_sent
     } else if (input$citySent == "Philadelphia") {
-      philly_text
+      philly_text_sent
     } else {
       "Please select a city to see the interpretation."  
     }
